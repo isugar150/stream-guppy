@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: stream-guppy
+ffmpeg:
+  path: ./ffmpeg/mac/ffmpeg
+  waitForM3u8TimeoutSeconds: 30
+hls:
+  output:
+    basePath: ./hls_output
+streaming:
+  inactivityTimeoutSeconds: 60
