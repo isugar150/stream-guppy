@@ -118,6 +118,17 @@ public class StreamingService {
                 m3u8Path                     // 메인 M3U8 플레이리스트 파일 경로
         ));
 
+        // if (audioExists) {
+        //     command.remove("-an"); // -an 제거
+        //     // 필요한 오디오 옵션 추가
+        //     command.add(command.indexOf("-f") -1, "-ac"); // -f 앞에 오디오 옵션 추가 (순서는 중요하지 않을 수 있음)
+        //     command.add(command.indexOf("-f") -1, "2");
+        //     command.add(command.indexOf("-f") -1, "-b:a");
+        //     command.add(command.indexOf("-f") -1, "128k");
+        //     command.add(command.indexOf("-f") -1, "-c:a");
+        //     command.add(command.indexOf("-f") -1, "aac");
+        // }
+
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true); // 에러 스트림을 표준 출력으로
         // processBuilder.directory(outputDir.toFile()); // 작업 디렉토리 설정 (선택 사항)
