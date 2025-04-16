@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -80,18 +81,42 @@ public class StreamingService {
         String m3u8Path = outputDir.resolve("stream.m3u8").toString();
         String tsSegmentPattern = outputDir.resolve("stream%03d.ts").toString();
 
-        List<String> command = List.of(
+        int frameRate = 25;
+        List<String> command = new ArrayList<>(List.of( // 수정 가능하도록 ArrayList로 생성
                 ffmpegPath,
+
+                // === 입력 관련 옵션 (RTSP 안정성 및 분석 강화) ===
+                "-fflags", "+genpts",          // PTS (Presentation Timestamp)가 없을 경우 생성 시도
+                "-rtsp_transport", "tcp",    // RTSP 전송 프로토콜을 TCP로 강제 (UDP보다 안정적)
+                "-analyzeduration", "10M",   // 스트림 분석 시간 늘리기 (10초 = 10M)
+                "-probesize", "10M",         // 스트림 분석을 위한 데이터 크기 늘리기 (10MB = 10M)
+                "-timeout", "5000000",       // RTSP 연결 및 데이터 수신 타임아웃 설정 (5초 = 5000000 마이크로초)
+                "-r", String.valueOf(frameRate), // <<< 입력 프레임 속도 강제 지정 (예: "25")
+
+                // === 입력 소스 ===
                 "-i", config.getRtspUrl(),
-                "-c:v", "copy",
-                "-c:a", "copy", // 필요 시 "aac" 등 코덱 변환
+
+                // === 비디오 처리 (호환성 중심) ===
+                "-c:v", "libx264",           // 비디오 코덱: H.264로 강제 재인코딩 (호환성 향상)
+                "-preset", "veryfast",       // 인코딩 속도/압축률 조절
+                "-profile:v", "baseline",    // H.264 프로파일 설정 (구형 기기 호환성)
+                "-level:v", "3.0",           // H.264 레벨 설정
+                "-pix_fmt", "yuv420p",       // 픽셀 포맷 지정 (보편적)
+                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", // <<< 해상도 짝수 맞춤 (Java List에서는 내부 따옴표 불필요)
+                "-r", String.valueOf(frameRate), // <<< 출력 프레임 속도 강제 지정 (입력과 동일하게)
+
+                // === 오디오 처리 비활성화 ===
+                "-an",                       // <<< 오디오 비활성화 (Audio No)
+
+                // === HLS 출력 설정 ===
                 "-f", "hls",
                 "-hls_time", "4",
                 "-hls_list_size", "5",
-                "-hls_flags", "delete_segments",
-                "-hls_segment_filename", tsSegmentPattern,
-                m3u8Path
-        );
+                "-hls_flags", "delete_segments+independent_segments", // 독립 세그먼트 생성 및 오래된 세그먼트 삭제
+                "-hls_segment_type", "mpegts", // 세그먼트 타입 명시
+                "-hls_segment_filename", tsSegmentPattern, // TS 세그먼트 파일 이름 패턴
+                m3u8Path                     // 메인 M3U8 플레이리스트 파일 경로
+        ));
 
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true); // 에러 스트림을 표준 출력으로
