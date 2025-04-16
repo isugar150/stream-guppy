@@ -1,8 +1,10 @@
 package com.namejm.stream_guppy.service;
 
 import com.namejm.stream_guppy.config.ProcessInfo;
-import com.namejm.stream_guppy.config.StreamConfig;
+import com.namejm.stream_guppy.repository.StreamRepository;
+import com.namejm.stream_guppy.vo.StreamVO;
 import com.namejm.stream_guppy.util.FileUtils;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,19 +34,38 @@ import java.util.concurrent.TimeUnit;
 public class StreamingService {
     private final ConcurrentHashMap<String, ProcessInfo> runningStreams = new ConcurrentHashMap<>();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final StreamRepository streamRepository;
 
-    @Value("${ffmpeg.path:ffmpeg}")
+    @Value("${stream_guppy.ffmpeg.path:ffmpeg}")
     private String ffmpegPath;
 
-    @Value("${hls.output.basePath:./hls_output}")
+    @Value("${stream_guppy.hls.output.basePath:./hls_output}")
     private String hlsOutputBasePath;
 
-    @Value("${streaming.inactivityTimeoutSeconds:60}")
+    @Value("${stream_guppy.streaming.inactivityTimeoutSeconds:60}")
     private long inactivityTimeoutSeconds;
 
-    @Value("${ffmpeg.waitForM3u8TimeoutSeconds:10}") // m3u8 파일 생성 대기 시간 (초)
+    @Value("${stream_guppy.ffmpeg.waitForM3u8TimeoutSeconds:30}") // m3u8 파일 생성 대기 시간 (초)
     private long waitForM3u8TimeoutSeconds;
 
+    @PostConstruct
+    public void init() {
+        int[] array = new int[]{1, 3, 7};
+        for(int i = 0; i < 3; i++) {
+            StreamVO vo = new StreamVO();
+            vo.setStreamKey("CCTV" + (i + 1));
+            vo.setName("CCTV" + (i + 1));
+            vo.setRtspUrl("rtsp://210.99.70.120:1935/live/cctv00"+array[i]+".stream");
+            vo.setUseYn(true);
+            streamRepository.save(vo);
+        }
+//        StreamVO vo = new StreamVO();
+//        vo.setStreamKey("CCTV1");
+//        vo.setName("CCTV1");
+//        vo.setRtspUrl("rtsp://210.99.70.120:1935/live/cctv007.stream");
+//        vo.setUseYn(true);
+//        streamRepository.save(vo);
+    }
 
     /**
      * 특정 스트림 키에 대한 HLS 스트리밍을 시작하거나, 이미 실행 중이면 정보를 반환하고 마지막 접근 시간을 갱신.
@@ -56,7 +77,7 @@ public class StreamingService {
         // 1. 현재 실행 중인지 확인
         ProcessInfo existingProcessInfo = runningStreams.get(streamKey);
         if (existingProcessInfo != null && existingProcessInfo.getProcess().isAlive()) {
-            log.debug("Stream '{}' is already running. Updating last accessed time.", streamKey);
+            log.info("Stream '{}' is already running. Updating last accessed time.", streamKey);
             existingProcessInfo.updateLastAccessedTime();
             return Optional.of(existingProcessInfo);
         } else if (existingProcessInfo != null) {
@@ -67,12 +88,7 @@ public class StreamingService {
         }
 
         // 2. DB에서 활성화된 스트림 정보 조회
-        StreamConfig config = new StreamConfig();
-        config.setId(1L);
-        config.setStreamKey("CCTV1");
-        config.setName("CCTV1");
-        config.setRtspUrl("rtsp://210.99.70.120:1935/live/cctv007.stream");
-        config.setUseYn(true);
+        StreamVO config = streamRepository.findByStreamKey(streamKey).orElse(null);
 
         // 3. FFmpeg 프로세스 시작
         Path outputDir = Paths.get(FileUtils.getResolvedPath(hlsOutputBasePath).toString(), streamKey);
@@ -83,7 +99,7 @@ public class StreamingService {
 
         int frameRate = 25;
         List<String> command = new ArrayList<>(List.of( // 수정 가능하도록 ArrayList로 생성
-                ffmpegPath,
+                FileUtils.getResolvedPath(ffmpegPath).toString(),
 
                 // === 입력 관련 옵션 (RTSP 안정성 및 분석 강화) ===
                 "-fflags", "+genpts",          // PTS (Presentation Timestamp)가 없을 경우 생성 시도
@@ -135,6 +151,7 @@ public class StreamingService {
 
         log.info("Starting FFmpeg for stream '{}': {}", streamKey, String.join(" ", command));
         Process process = processBuilder.start();
+        executorService.submit(() -> logProcessOutput(process, streamKey));
 
         ProcessInfo newProcessInfo = new ProcessInfo(process, streamKey, outputDir, Instant.now());
 
@@ -143,7 +160,6 @@ public class StreamingService {
         if (m3u8Ready) {
             log.info(".m3u8 file found for stream '{}'. Proceeding.", streamKey);
             runningStreams.put(streamKey, newProcessInfo);
-            executorService.submit(() -> logProcessOutput(process, streamKey)); // 로그 처리 시작
             log.info("FFmpeg process started and .m3u8 confirmed for stream '{}'. PID: {}", streamKey, process.pid());
             return Optional.of(newProcessInfo);
         } else {
@@ -212,7 +228,7 @@ public class StreamingService {
         ProcessInfo processInfo = runningStreams.get(streamKey);
         if (processInfo != null && processInfo.getProcess().isAlive()) {
             processInfo.updateLastAccessedTime();
-            log.trace("Updated last accessed time for stream '{}'", streamKey);
+            log.info("Updated last accessed time for stream '{}'", streamKey);
         }
     }
     /**
@@ -240,7 +256,7 @@ public class StreamingService {
             }
             cleanupStreamResources(processInfo);
         } else {
-            log.debug("Stream '{}' was not running or already removed.", streamKey);
+            log.info("Stream '{}' was not running or already removed.", streamKey);
             // 맵에 없더라도 혹시 모를 파일 정리를 위해 시도할 수 있음
              cleanupStreamResources(new ProcessInfo(null, streamKey, Paths.get(FileUtils.getResolvedPath(hlsOutputBasePath).toString(), streamKey), Instant.now()));
         }
@@ -274,7 +290,7 @@ public class StreamingService {
 
     // 비활성 스트림 정리 (스케줄러에서 호출)
     public void cleanupInactiveStreams() {
-        log.trace("Running inactivity check...");
+        log.info("Running inactivity check...");
         Instant cutoffTime = Instant.now().minusSeconds(inactivityTimeoutSeconds);
         runningStreams.forEach((key, info) -> {
             if (info.getLastAccessedTime().isBefore(cutoffTime)) {
@@ -286,7 +302,7 @@ public class StreamingService {
         });
          // 주기적으로 맵 크기 로깅 (디버깅용)
         if(runningStreams.size() > 0) {
-             log.debug("Currently active streams: {}", runningStreams.size());
+             log.info("Currently active streams: {}", runningStreams.size());
         }
     }
 
@@ -295,7 +311,7 @@ public class StreamingService {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                log.trace("[FFmpeg - {}]: {}", streamKey, line); // 로그 레벨 조절 (Trace or Debug)
+                log.info("[FFmpeg - {}]: {}", streamKey, line);
             }
         } catch (IOException e) {
              ProcessInfo info = runningStreams.get(streamKey);

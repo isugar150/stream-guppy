@@ -1,11 +1,54 @@
+server:
+  address: 0.0.0.0
+  servlet:
+    encoding:
+      charset: utf-8
+      force: true
+
 spring:
+  profiles:
+    default: local
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 500MB
+      max-request-size: 500MB
   application:
     name: stream-guppy
-ffmpeg:
-  path: ./ffmpeg/mac/ffmpeg
-  waitForM3u8TimeoutSeconds: 30
-hls:
-  output:
-    basePath: ./hls_output
-streaming:
-  inactivityTimeoutSeconds: 60
+  docker:
+    compose:
+      lifecycle-management: start-and-stop
+      start:
+        command: up
+      stop:
+        command: down
+        timeout: 1m
+      file: docker-compose.yml
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:mem:testdb
+    username: sa
+    password:
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+stream_guppy:
+  ffmpeg:
+  #  path: ./ffmpeg/mac/ffmpeg # MacOS
+    path: ./ffmpeg/windows/bin/ffmpeg.exe # Windows
+    waitForM3u8TimeoutSeconds: 30
+  hls:
+    output:
+      basePath: ./hls_output
+  streaming:
+    inactivityTimeoutSeconds: 60
