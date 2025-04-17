@@ -56,7 +56,6 @@ public class StreamingService {
             vo.setStreamKey("CCTV" + (i + 1));
             vo.setName("CCTV" + (i + 1));
             vo.setRtspUrl("rtsp://210.99.70.120:1935/live/cctv00"+array[i]+".stream");
-            vo.setUseYn(true);
             streamRepository.save(vo);
         }
 //        StreamVO vo = new StreamVO();

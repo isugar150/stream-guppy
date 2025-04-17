@@ -11,6 +11,4 @@ import java.util.Optional;
 public interface StreamRepository extends JpaRepository<StreamVO, String> {
     List<StreamVO> findAll();
     Optional<StreamVO> findByStreamKey(String streamKey);
-    List<StreamVO> findAllByUseYn(boolean useYn);
-
 }
