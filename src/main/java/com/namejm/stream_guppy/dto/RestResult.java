@@ -19,9 +19,7 @@ public class RestResult {
         this.data = payload;
     }
     public void setData(String name, Object value) {
-        // 현재 data가 Map 타입인지 확인
         if (!(this.data instanceof Map)) {
-            // Map이 아니거나 null이면, 새로운 HashMap을 생성하여 data 필드에 할당
             this.data = new HashMap<String, Object>();
         }
 
