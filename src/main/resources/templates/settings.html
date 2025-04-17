@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <script th:src="@{/js/bootstrap.min.js}"></script>
+    <script th:src="@{/js/hls.min.js}"></script>
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet" />
+    <title>TEST</title>
+    <style>
+        #tbody tr.selected-row {
+            background-color: #e0e0e0; /* 원하는 색상으로 변경 가능 */
+        }
+        #tbody tr:hover {
+            cursor: pointer; /* 클릭 가능함을 나타내는 커서 */
+            background-color: #f5f5f5; /* 마우스 오버 시 배경색 */
+        }
+    </style>
+    <script>
+        const tbody = document.getElementById('tbody')
+        const video = document.getElementById('video');
+
+
+        window.addEventListener("DOMContentLoaded", () => {
+            const tbody = document.getElementById('tbody');
+            const video = document.getElementById('video');
+
+            fetch('/api/stream', {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json;charset=utf-8;",
+              }})
+              .then((response) => {
+                  if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                  }
+                  return response.json();
+              })
+              .then((data) => {
+                  if (!data || data.length === 0) {
+                      console.warn("No stream data received.");
+                      tbody.innerHTML = '<tr><td colspan="5">스트림 데이터가 없습니다.</td></tr>';
+                      return; // 데이터 없으면 종료
+                  }
+
+                  const array = [];
+                  for(let i = 0; i < data.length; i++) {
+                      array.push(`
+                          <tr data-stream-key="${data[i].streamKey}">
+                            <th scope="row">${i + 1}</th>
+                            <td>${data[i].streamKey}</td>
+                            <td>${data[i].name}</td>
+                            <td>${data[i].rtspUrl}</td>
+                            <td>${data[i].useYn}</td>
+                          </tr>`);
+                  }
+                  tbody.innerHTML = array.join('');
+
+                  let initialStreamKey = data[0].streamKey;
+                  let videoSrc = `/hls/${initialStreamKey}/stream.m3u8`;
+
+                  if (Hls.isSupported()) {
+                      hls = new Hls({
+                          autoStartLoad: true,
+                      });
+                      hls.loadSource(videoSrc);
+                      hls.attachMedia(video);
+                      hls.on(Hls.Events.MEDIA_ATTACHED, function () {
+                          console.log("Video and HLS bound");
+                          video.muted = true; // 자동 재생을 위해 음소거
+                          video.play().catch(e => console.error("Autoplay failed:", e)); // 자동 재생 시도 및 오류 처리
+                      });
+                      hls.on(Hls.Events.ERROR, function (event, data) {
+                          console.error('HLS Error:', data);
+                          // 오류 처리 로직 추가 가능 (예: 특정 오류 시 재시도)
+                      });
+                  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                      // Native HLS support (Safari 등)
+                      video.src = videoSrc;
+                      video.muted = true;
+                      video.addEventListener('loadedmetadata', function() {
+                          video.play().catch(e => console.error("Autoplay failed:", e));
+                      });
+                  } else {
+                      console.error("HLS is not supported on this browser.");
+                  }
+
+                  // 첫 번째 행을 기본 선택으로 표시 (선택 사항)
+                  const firstRow = tbody.querySelector('tr');
+                  if (firstRow) {
+                      firstRow.classList.add('selected-row');
+                      currentSelectedRow = firstRow;
+                  }
+
+              })
+              .catch((error) => {
+                  console.error("Fetch error:", error);
+                  tbody.innerHTML = `<tr><td colspan="5">데이터를 불러오는 중 오류 발생: ${error.message}</td></tr>`; // 사용자에게 오류 표시
+              });
+
+            tbody.addEventListener('click', (event) => {
+                const clickedRow = event.target.closest('tr');
+
+                if (!clickedRow) {
+                    return;
+                }
+
+                if (currentSelectedRow) {
+                    currentSelectedRow.classList.remove('selected-row');
+                }
+                clickedRow.classList.add('selected-row');
+                currentSelectedRow = clickedRow;
+
+
+                const streamKey = clickedRow.dataset.streamKey;
+
+                if (streamKey) {
+                    console.log(`Row clicked, changing stream to: ${streamKey}`);
+                    const newVideoSrc = `/hls/${streamKey}/stream.m3u8`;
+
+                    if (hls) {
+                        hls.loadSource(newVideoSrc);
+                        hls.once(Hls.Events.MANIFEST_PARSED, function() {
+                            video.play().catch(e => console.error("Play after change failed:", e));
+                        });
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = newVideoSrc;
+                        video.play().catch(e => console.error("Play after change failed:", e)); // 변경 후 재생 시도
+                    }
+                } else {
+                    console.warn("Clicked row does not have a data-stream-key attribute.");
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="container text-center mt-3"> <div class="row align-items-start">
+        <div class="col-md-6"> <div class="table-responsive"> <table class="table table-hover"> <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">스트림 키</th>
+                      <th scope="col">관리용 이름</th>
+                      <th scope="col">RTSP 주소</th>
+                      <th scope="col">사용 여부</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody">
+                      <tr><td colspan="5">데이터 로딩 중...</td></tr>
+                  </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-md-6"> <video id="video" width="100%" muted playsinline></video> </div>
+      </div>
+    </div>
+</body>
+</html>
