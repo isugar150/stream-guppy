@@ -73,34 +73,29 @@ public class StreamingService {
      * @throws IOException FFmpeg 프로세스 시작 실패 시
      */
     public Optional<ProcessInfo> startOrUpdateStream(String streamKey) throws IOException {
-        // 1. 현재 실행 중인지 확인
         ProcessInfo existingProcessInfo = runningStreams.get(streamKey);
         if (existingProcessInfo != null && existingProcessInfo.getProcess().isAlive()) {
             log.info("Stream '{}' is already running. Updating last accessed time.", streamKey);
             existingProcessInfo.updateLastAccessedTime();
             return Optional.of(existingProcessInfo);
         } else if (existingProcessInfo != null) {
-            // 프로세스가 죽었지만 맵에 남아있는 경우 제거
             log.warn("Found dead process entry for stream '{}'. Cleaning up.", streamKey);
             cleanupStreamResources(existingProcessInfo);
             runningStreams.remove(streamKey);
         }
 
-        // 2. DB에서 활성화된 스트림 정보 조회
         StreamVO config = streamRepository.findByStreamKey(streamKey).orElse(null);
 
-        // 3. FFmpeg 프로세스 시작
         Path outputDir = Paths.get(FileUtils.getResolvedPath(hlsOutputBasePath).toString(), streamKey);
-        Files.createDirectories(outputDir); // 개별 스트림 출력 디렉토리 생성
+        Files.createDirectories(outputDir);
 
         String m3u8Path = outputDir.resolve("stream.m3u8").toString();
         String tsSegmentPattern = outputDir.resolve("stream%03d.ts").toString();
 
         int frameRate = 25;
-        List<String> command = new ArrayList<>(List.of( // 수정 가능하도록 ArrayList로 생성
+        List<String> command = new ArrayList<>(List.of(
                 FileUtils.getResolvedPath(ffmpegPath).toString(),
 
-                // === 입력 관련 옵션 (RTSP 안정성 및 분석 강화) ===
                 "-fflags", "+genpts",          // PTS (Presentation Timestamp)가 없을 경우 생성 시도
                 "-rtsp_transport", "tcp",    // RTSP 전송 프로토콜을 TCP로 강제 (UDP보다 안정적)
                 "-analyzeduration", "10M",   // 스트림 분석 시간 늘리기 (10초 = 10M)
@@ -145,8 +140,8 @@ public class StreamingService {
         // }
 
         ProcessBuilder processBuilder = new ProcessBuilder(command);
-        processBuilder.redirectErrorStream(true); // 에러 스트림을 표준 출력으로
-        // processBuilder.directory(outputDir.toFile()); // 작업 디렉토리 설정 (선택 사항)
+        processBuilder.redirectErrorStream(true);
+        // processBuilder.directory(outputDir.toFile()); // 작업 디렉토리 설정
 
         log.info("Starting FFmpeg for stream '{}': {}", streamKey, String.join(" ", command));
         Process process = processBuilder.start();
@@ -163,16 +158,15 @@ public class StreamingService {
             return Optional.of(newProcessInfo);
         } else {
             log.error("Failed to detect .m3u8 file for stream '{}' within timeout or process died.", streamKey);
-            // 프로세스 강제 종료 및 정리
             process.destroyForcibly();
             try {
-                process.waitFor(1, TimeUnit.SECONDS); // 잠시 대기
+                process.waitFor(1, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 log.error("Interrupted while waiting for forced process termination.", e);
             }
-            cleanupStreamResources(newProcessInfo); // 디렉토리 정리 시도
-            return Optional.empty(); // 실패했으므로 빈 Optional 반환
+            cleanupStreamResources(newProcessInfo);
+            return Optional.empty();
         }
     }
 
@@ -188,24 +182,19 @@ public class StreamingService {
         Duration timeout = Duration.ofSeconds(waitForM3u8TimeoutSeconds);
 
         while (Duration.between(startTime, Instant.now()).compareTo(timeout) < 0) {
-            // 1. 프로세스가 죽었는지 먼저 확인
             if (!process.isAlive()) {
                 log.warn("FFmpeg process died while waiting for .m3u8 file: {}", m3u8Path);
                 return false;
             }
-            // 2. 파일이 존재하는지 확인
             if (Files.exists(m3u8Path) && Files.isReadable(m3u8Path)) {
-                 // 추가 검사: 파일 크기가 0보다 큰지 (간혹 빈 파일이 먼저 생길 수 있음)
                  try {
                      if (Files.size(m3u8Path) > 0) {
                          return true;
                      }
                  } catch (IOException e) {
                      log.warn("Error checking size of .m3u8 file '{}': {}", m3u8Path, e.getMessage());
-                     // 크기 확인 중 오류 발생 시 일단 존재한다고 간주하거나, 잠시 더 기다릴 수 있음
                  }
             }
-            // 3. 잠시 대기 후 다시 시도
             try {
                 Thread.sleep(200); // 200ms 대기
             } catch (InterruptedException e) {
@@ -214,7 +203,6 @@ public class StreamingService {
                 return false;
             }
         }
-        // 타임아웃 도달
         log.warn("Timeout waiting for .m3u8 file: {}", m3u8Path);
         return false;
     }
@@ -235,16 +223,16 @@ public class StreamingService {
      * @param streamKey 중지할 스트림 키
      */
     public void stopStream(String streamKey) {
-        ProcessInfo processInfo = runningStreams.remove(streamKey); // 맵에서 제거 먼저 시도
+        ProcessInfo processInfo = runningStreams.remove(streamKey);
         if (processInfo != null) {
             Process process = processInfo.getProcess();
             if (process.isAlive()) {
                 log.info("Stopping FFmpeg process for stream '{}' (PID: {})...", streamKey, process.pid());
-                process.destroy(); // SIGTERM
+                process.destroy();
                 try {
                     if (!process.waitFor(5, TimeUnit.SECONDS)) {
                         log.warn("Forcefully stopping FFmpeg process for stream '{}'.", streamKey);
-                        process.destroyForcibly(); // SIGKILL
+                        process.destroyForcibly();
                     }
                     log.info("FFmpeg process stopped for stream '{}'.", streamKey);
                 } catch (InterruptedException e) {
@@ -256,27 +244,21 @@ public class StreamingService {
             cleanupStreamResources(processInfo);
         } else {
             log.info("Stream '{}' was not running or already removed.", streamKey);
-            // 맵에 없더라도 혹시 모를 파일 정리를 위해 시도할 수 있음
              cleanupStreamResources(new ProcessInfo(null, streamKey, Paths.get(FileUtils.getResolvedPath(hlsOutputBasePath).toString(), streamKey), Instant.now()));
         }
     }
 
-    // 스트림 관련 파일/디렉토리 정리
     private void cleanupStreamResources(ProcessInfo processInfo) {
         if (processInfo != null && processInfo.getOutputDirectory() != null) {
             Path dir = processInfo.getOutputDirectory();
             try {
                 if (Files.exists(dir)) {
                     log.info("Cleaning up HLS files for stream '{}' in directory: {}", processInfo.getStreamKey(), dir);
-                    // FileSystemUtils.deleteRecursively(dir); // Spring 유틸리티 사용
-                    // Java NIO Files 사용 (더 표준적)
                      Files.walk(dir)
                         .sorted(java.util.Comparator.reverseOrder())
                         .map(Path::toFile)
-                        .peek(System.out::println)
+//                        .peek(System.out::println)
                         .forEach(File::delete);
-
-                    // Files.deleteIfExists(dir); // 디렉토리 자체 삭제 (위 walk로 내용물 삭제 후 가능)
 
                     log.info("Successfully cleaned up directory for stream '{}'.", processInfo.getStreamKey());
                 }
@@ -286,26 +268,20 @@ public class StreamingService {
         }
     }
 
-
-    // 비활성 스트림 정리 (스케줄러에서 호출)
     public void cleanupInactiveStreams() {
         log.info("Running inactivity check...");
         Instant cutoffTime = Instant.now().minusSeconds(inactivityTimeoutSeconds);
         runningStreams.forEach((key, info) -> {
             if (info.getLastAccessedTime().isBefore(cutoffTime)) {
                 log.info("Stream '{}' inactive since {}. Stopping...", key, info.getLastAccessedTime());
-                // 별도 스레드 또는 현재 스레드에서 stopStream 호출
-                // ConcurrentModificationException 방지 위해 키 목록 복사 후 처리 권장
                 stopStream(key);
             }
         });
-         // 주기적으로 맵 크기 로깅 (디버깅용)
         if(runningStreams.size() > 0) {
              log.info("Currently active streams: {}", runningStreams.size());
         }
     }
 
-    // FFmpeg 로그 처리
     private void logProcessOutput(Process process, String streamKey) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
@@ -314,28 +290,24 @@ public class StreamingService {
             }
         } catch (IOException e) {
              ProcessInfo info = runningStreams.get(streamKey);
-             // 프로세스가 정상 종료/중지 된 후 발생하는 Stream closed 에러는 무시
             if (info != null && info.getProcess() == process && process.isAlive()) {
                log.error("Error reading FFmpeg output for stream '{}'", streamKey, e);
              } else if (!e.getMessage().contains("Stream closed")) {
                  log.warn("IOException reading FFmpeg output after process stopped for stream '{}': {}", streamKey, e.getMessage());
              }
         } finally {
-            // 프로세스 종료 시 맵에서 제거 (stopStream 호출 없이 비정상 종료된 경우 대비)
             ProcessInfo info = runningStreams.get(streamKey);
             if (info != null && info.getProcess() == process && !process.isAlive()) {
                 log.info("FFmpeg process for stream '{}' exited unexpectedly or finished.", streamKey);
-                runningStreams.remove(streamKey); // stopStream이 호출되지 않았을 수 있으므로 여기서 제거
-                cleanupStreamResources(info); // 자원 정리
+                runningStreams.remove(streamKey);
+                cleanupStreamResources(info);
             }
         }
     }
 
-    // 애플리케이션 종료 시 모든 스트림 중지
     @PreDestroy
     public void shutdown() {
         log.info("Shutting down StreamingService. Stopping all streams...");
-        // 키 목록 복사 후 처리 (ConcurrentModificationException 방지)
         List<String> keys = List.copyOf(runningStreams.keySet());
         keys.forEach(this::stopStream);
         executorService.shutdown();

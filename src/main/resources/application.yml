@@ -44,8 +44,8 @@ spring:
 
 stream_guppy:
   ffmpeg:
-    path: ./ffmpeg/ffmpeg # MacOS
-#    path: ./ffmpeg/windows/bin/ffmpeg.exe # Windows
+#    path: ./ffmpeg/ffmpeg # MacOS
+    path: ./ffmpeg/ffmpeg.exe # Windows
     waitForM3u8TimeoutSeconds: 30
   hls:
     output:

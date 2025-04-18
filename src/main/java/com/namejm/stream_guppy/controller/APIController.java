@@ -38,8 +38,23 @@ public class APIController {
         return result;
     }
 
-    @RequestMapping(value = "/stream/{streamKey}", method = {RequestMethod.POST, RequestMethod.PUT})
-    public RestResult saveStreamList(@PathVariable String streamKey, @RequestBody StreamVO streamVO) throws Exception {
+    @PostMapping("/stream")
+    public RestResult insertStreamList(@PathVariable String streamKey, @RequestBody StreamVO streamVO) throws Exception {
+        RestResult result = new RestResult();
+        streamVO.setStreamKey(streamKey);
+        String isValidCheck = streamVO.isValidCheck();
+        if(!isValidCheck.isEmpty()) {
+            result.setData(isValidCheck);
+            return result;
+        }
+
+        streamRepository.save(streamVO);
+        result.setSuccess(true);
+        return result;
+    }
+
+    @PutMapping("/stream/{streamKey}")
+    public RestResult updateStreamList(@PathVariable String streamKey, @RequestBody StreamVO streamVO) throws Exception {
         RestResult result = new RestResult();
         streamVO.setStreamKey(streamKey);
         String isValidCheck = streamVO.isValidCheck();

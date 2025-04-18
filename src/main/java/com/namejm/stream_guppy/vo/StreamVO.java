@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 public class StreamVO {
 
     @Id
-    private String streamKey;             // 관리용 이름
+    private String streamKey;             // 스트리밍 키
 
     @Column(nullable = false, length = 50)
     private String name;             // 관리용 이름
