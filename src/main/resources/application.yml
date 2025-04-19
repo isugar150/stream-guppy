@@ -30,13 +30,13 @@ spring:
     username: sa
     password:
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+    defer-datasource-initialization: true
   h2:
     console:
       enabled: true
@@ -52,6 +52,43 @@ stream_guppy:
       basePath: ./hls_output
   streaming:
     inactivityTimeoutSeconds: 60
+  # Database configuration (h2, oracle, mssql, postgresql, mysql, mariadb)
+  database: h2
 
-guppy:
+  # Oracle database configuration
+  datasource:
+    oracle:
+      driver-class-name: oracle.jdbc.OracleDriver
+      url: jdbc:oracle:thin:@localhost:1521:xe
+      username: system
+      password: password
+
+    # Microsoft SQL Server configuration
+    mssql:
+      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+      url: jdbc:sqlserver://localhost:1433;databaseName=guppy;encrypt=false
+      username: sa
+      password: password
+
+    # PostgreSQL configuration
+    postgresql:
+      driver-class-name: org.postgresql.Driver
+      url: jdbc:postgresql://localhost:5432/guppy
+      username: postgres
+      password: password
+
+    # MySQL configuration
+    mysql:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://localhost:3306/guppy?useSSL=false&serverTimezone=UTC
+      username: root
+      password: password
+
+    # MariaDB configuration
+    mariadb:
+      driver-class-name: org.mariadb.jdbc.Driver
+      url: jdbc:mariadb://localhost:3306/guppy
+      username: root
+      password: password
+
   frontUrl: "http://localhost:8080"
