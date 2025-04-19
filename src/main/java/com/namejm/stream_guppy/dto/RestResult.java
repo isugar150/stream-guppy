@@ -10,9 +10,8 @@ import java.util.Map;
 @Getter
 @Setter
 public class RestResult {
-    private boolean success;
+    private int status;
     private String message;
-
     private Object data;
 
     public void setData(Object payload) {
@@ -36,28 +35,28 @@ public class RestResult {
 
     public RestResult() {}
 
-    public RestResult(boolean success, String message) {
-        this.success = success;
+    public RestResult(int status, String message) {
+        this.status = status;
         this.message = message;
     }
 
     public static RestResult success(Object payload) {
-        RestResult result = new RestResult(true, "Success");
+        RestResult result = new RestResult(200, "Success");
         result.setData(payload);
         return result;
     }
 
     public static RestResult success(String key, Object value) {
-        RestResult result = new RestResult(true, "Success");
+        RestResult result = new RestResult(200, "Success");
         result.setData(key, value);
         return result;
     }
 
      public static RestResult successMessage(String message) {
-         return new RestResult(true, message);
+         return new RestResult(200, message);
      }
 
     public static RestResult failure(String message) {
-        return new RestResult(false, message);
+        return new RestResult(500, message);
     }
 }

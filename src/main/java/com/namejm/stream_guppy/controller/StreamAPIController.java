@@ -22,69 +22,48 @@ public class StreamAPIController {
     private final ModelMapper mapper;
 
     @GetMapping
-    public RestResult getStreamList(StreamDto.StreamReqDto streamReqDto) throws Exception {
-        RestResult result = new RestResult();
-
-        List<StreamDto.StreamResDto> list = streamRepository.findAll()
+    public List<StreamDto.StreamResDto> getStreamList(StreamDto.StreamReqDto streamReqDto) throws Exception {
+        return streamRepository.findAll()
                 .stream().map((obj) -> mapper.map(obj, StreamDto.StreamResDto.class))
                 .collect(Collectors.toList());
-
-        result.setData(list);
-        result.setSuccess(true);
-        return result;
     }
 
     @GetMapping("/{streamKey}")
-    public RestResult getStreamList(@PathVariable String streamKey) throws Exception {
-        RestResult result = new RestResult();
+    public StreamDto.StreamResDto getStreamList(@PathVariable String streamKey) throws Exception {
         if(streamKey == null || streamKey.isEmpty()) {
-            result.setData("message", "streamKey is null or empty");
-            return result;
+            throw new IllegalArgumentException("streamKey is null or empty");
         }
-        result.setData(streamRepository.findByStreamKey(streamKey).orElse(new StreamVO()));
-        result.setSuccess(true);
-        return result;
+        return mapper.map(streamRepository.findByStreamKey(streamKey).orElse(new StreamVO()), StreamDto.StreamResDto.class);
     }
 
     @PostMapping
-    public RestResult insertStreamList(@PathVariable String streamKey, @RequestBody StreamVO streamVO) throws Exception {
-        RestResult result = new RestResult();
+    public void insertStreamList(@PathVariable String streamKey, @RequestBody StreamDto.StreamSaveDto streamSaveDto) throws Exception {
+        StreamVO streamVO = mapper.map(streamSaveDto, StreamVO.class);
+
         streamVO.setStreamKey(streamKey);
         String isValidCheck = streamVO.isValidCheck();
         if(!isValidCheck.isEmpty()) {
-            result.setData(isValidCheck);
-            return result;
+            throw new IllegalArgumentException(isValidCheck);
         }
-
         streamRepository.save(streamVO);
-        result.setSuccess(true);
-        return result;
     }
 
     @PutMapping("/{streamKey}")
-    public RestResult updateStreamList(@PathVariable String streamKey, @RequestBody StreamVO streamVO) throws Exception {
-        RestResult result = new RestResult();
+    public void updateStreamList(@PathVariable String streamKey, @RequestBody StreamDto.StreamSaveDto streamSaveDto) throws Exception {
+        StreamVO streamVO = mapper.map(streamSaveDto, StreamVO.class);
         streamVO.setStreamKey(streamKey);
         String isValidCheck = streamVO.isValidCheck();
         if(!isValidCheck.isEmpty()) {
-            result.setData(isValidCheck);
-            return result;
+            throw new IllegalArgumentException(isValidCheck);
         }
-
         streamRepository.save(streamVO);
-        result.setSuccess(true);
-        return result;
     }
 
     @DeleteMapping("/{streamKey}")
-    public RestResult deleteStreamList(@PathVariable String streamKey) throws Exception {
-        RestResult result = new RestResult();
+    public void deleteStreamList(@PathVariable String streamKey) throws Exception {
         if(streamKey == null || streamKey.isEmpty()) {
-            result.setData("message", "streamKey is null or empty");
-            return result;
+            throw new IllegalArgumentException("streamKey is null or empty");
         }
         streamRepository.deleteById(streamKey);
-        result.setSuccess(true);
-        return result;
     }
 }
