@@ -52,3 +52,6 @@ stream_guppy:
       basePath: ./hls_output
   streaming:
     inactivityTimeoutSeconds: 60
+
+guppy:
+  frontUrl: "http://localhost:8080"

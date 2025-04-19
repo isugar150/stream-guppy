@@ -1,32 +1,40 @@
 package com.namejm.stream_guppy.controller;
 
 import com.namejm.stream_guppy.dto.RestResult;
+import com.namejm.stream_guppy.dto.StreamDto;
 import com.namejm.stream_guppy.repository.StreamRepository;
 import com.namejm.stream_guppy.vo.StreamVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @Slf4j
 @RequiredArgsConstructor
-@RequestMapping("/api")
-public class APIController {
+@RequestMapping("/api/stream")
+public class StreamAPIController {
 
     private final StreamRepository streamRepository;
+    private final ModelMapper mapper;
 
-    @GetMapping("/stream")
-    public RestResult getStreamList() throws Exception {
+    @GetMapping
+    public RestResult getStreamList(StreamDto.StreamReqDto streamReqDto) throws Exception {
         RestResult result = new RestResult();
-        result.setData(streamRepository.findAll());
+
+        List<StreamDto.StreamResDto> list = streamRepository.findAll()
+                .stream().map((obj) -> mapper.map(obj, StreamDto.StreamResDto.class))
+                .collect(Collectors.toList());
+
+        result.setData(list);
         result.setSuccess(true);
         return result;
     }
 
-    @GetMapping("/stream/{streamKey}")
+    @GetMapping("/{streamKey}")
     public RestResult getStreamList(@PathVariable String streamKey) throws Exception {
         RestResult result = new RestResult();
         if(streamKey == null || streamKey.isEmpty()) {
@@ -38,7 +46,7 @@ public class APIController {
         return result;
     }
 
-    @PostMapping("/stream")
+    @PostMapping
     public RestResult insertStreamList(@PathVariable String streamKey, @RequestBody StreamVO streamVO) throws Exception {
         RestResult result = new RestResult();
         streamVO.setStreamKey(streamKey);
@@ -53,7 +61,7 @@ public class APIController {
         return result;
     }
 
-    @PutMapping("/stream/{streamKey}")
+    @PutMapping("/{streamKey}")
     public RestResult updateStreamList(@PathVariable String streamKey, @RequestBody StreamVO streamVO) throws Exception {
         RestResult result = new RestResult();
         streamVO.setStreamKey(streamKey);
@@ -68,7 +76,7 @@ public class APIController {
         return result;
     }
 
-    @DeleteMapping("/stream/{streamKey}")
+    @DeleteMapping("/{streamKey}")
     public RestResult deleteStreamList(@PathVariable String streamKey) throws Exception {
         RestResult result = new RestResult();
         if(streamKey == null || streamKey.isEmpty()) {
