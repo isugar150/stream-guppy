@@ -36,19 +36,7 @@ public class StreamAPIController {
         return mapper.map(streamRepository.findByStreamKey(streamKey).orElse(new StreamVO()), StreamDto.StreamResDto.class);
     }
 
-    @PostMapping
-    public void insertStreamList(@PathVariable String streamKey, @RequestBody StreamDto.StreamSaveDto streamSaveDto) throws Exception {
-        StreamVO streamVO = mapper.map(streamSaveDto, StreamVO.class);
-
-        streamVO.setStreamKey(streamKey);
-        String isValidCheck = streamVO.isValidCheck();
-        if(!isValidCheck.isEmpty()) {
-            throw new IllegalArgumentException(isValidCheck);
-        }
-        streamRepository.save(streamVO);
-    }
-
-    @PutMapping("/{streamKey}")
+    @RequestMapping(value =  "/{streamKey}", method = {RequestMethod.POST, RequestMethod.PUT})
     public void updateStreamList(@PathVariable String streamKey, @RequestBody StreamDto.StreamSaveDto streamSaveDto) throws Exception {
         StreamVO streamVO = mapper.map(streamSaveDto, StreamVO.class);
         streamVO.setStreamKey(streamKey);

@@ -186,7 +186,7 @@
               })
               .then((response) => {
                   const data = response.data;
-                  if(response.success) {
+                  if(response.status === 200) {
                       alert('저장하였습니다.')
                       getList()
                   } else {
