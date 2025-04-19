@@ -1,6 +1,6 @@
 package com.namejm.stream_guppy.service;
 
-import com.namejm.stream_guppy.config.ProcessInfo;
+import com.namejm.stream_guppy.dto.ProcessDto;
 import com.namejm.stream_guppy.repository.StreamRepository;
 import com.namejm.stream_guppy.vo.StreamVO;
 import com.namejm.stream_guppy.util.FileUtils;
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 @Service
 public class StreamingService {
-    private final ConcurrentHashMap<String, ProcessInfo> runningStreams = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ProcessDto> runningStreams = new ConcurrentHashMap<>();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
     private final StreamRepository streamRepository;
 
@@ -72,15 +72,15 @@ public class StreamingService {
      * @return 실행 중인 스트림 정보 Optional (DB에 없거나 비활성화 시 비어있음)
      * @throws IOException FFmpeg 프로세스 시작 실패 시
      */
-    public Optional<ProcessInfo> startOrUpdateStream(String streamKey) throws IOException {
-        ProcessInfo existingProcessInfo = runningStreams.get(streamKey);
-        if (existingProcessInfo != null && existingProcessInfo.getProcess().isAlive()) {
+    public Optional<ProcessDto> startOrUpdateStream(String streamKey) throws IOException {
+        ProcessDto existingProcessDto = runningStreams.get(streamKey);
+        if (existingProcessDto != null && existingProcessDto.getProcess().isAlive()) {
             log.info("Stream '{}' is already running. Updating last accessed time.", streamKey);
-            existingProcessInfo.updateLastAccessedTime();
-            return Optional.of(existingProcessInfo);
-        } else if (existingProcessInfo != null) {
+            existingProcessDto.updateLastAccessedTime();
+            return Optional.of(existingProcessDto);
+        } else if (existingProcessDto != null) {
             log.warn("Found dead process entry for stream '{}'. Cleaning up.", streamKey);
-            cleanupStreamResources(existingProcessInfo);
+            cleanupStreamResources(existingProcessDto);
             runningStreams.remove(streamKey);
         }
 
@@ -147,15 +147,15 @@ public class StreamingService {
         Process process = processBuilder.start();
         executorService.submit(() -> logProcessOutput(process, streamKey));
 
-        ProcessInfo newProcessInfo = new ProcessInfo(process, streamKey, outputDir, Instant.now());
+        ProcessDto newProcessDto = new ProcessDto(process, streamKey, outputDir, Instant.now());
 
         boolean m3u8Ready = waitForM3u8File(Path.of(m3u8Path), process);
 
         if (m3u8Ready) {
             log.info(".m3u8 file found for stream '{}'. Proceeding.", streamKey);
-            runningStreams.put(streamKey, newProcessInfo);
+            runningStreams.put(streamKey, newProcessDto);
             log.info("FFmpeg process started and .m3u8 confirmed for stream '{}'. PID: {}", streamKey, process.pid());
-            return Optional.of(newProcessInfo);
+            return Optional.of(newProcessDto);
         } else {
             log.error("Failed to detect .m3u8 file for stream '{}' within timeout or process died.", streamKey);
             process.destroyForcibly();
@@ -165,7 +165,7 @@ public class StreamingService {
                 Thread.currentThread().interrupt();
                 log.error("Interrupted while waiting for forced process termination.", e);
             }
-            cleanupStreamResources(newProcessInfo);
+            cleanupStreamResources(newProcessDto);
             return Optional.empty();
         }
     }
@@ -212,9 +212,9 @@ public class StreamingService {
      * @param streamKey 스트림 식별 키
      */
     public void updateStreamActivity(String streamKey) {
-        ProcessInfo processInfo = runningStreams.get(streamKey);
-        if (processInfo != null && processInfo.getProcess().isAlive()) {
-            processInfo.updateLastAccessedTime();
+        ProcessDto processDto = runningStreams.get(streamKey);
+        if (processDto != null && processDto.getProcess().isAlive()) {
+            processDto.updateLastAccessedTime();
             log.info("Updated last accessed time for stream '{}'", streamKey);
         }
     }
@@ -223,9 +223,9 @@ public class StreamingService {
      * @param streamKey 중지할 스트림 키
      */
     public void stopStream(String streamKey) {
-        ProcessInfo processInfo = runningStreams.remove(streamKey);
-        if (processInfo != null) {
-            Process process = processInfo.getProcess();
+        ProcessDto processDto = runningStreams.remove(streamKey);
+        if (processDto != null) {
+            Process process = processDto.getProcess();
             if (process.isAlive()) {
                 log.info("Stopping FFmpeg process for stream '{}' (PID: {})...", streamKey, process.pid());
                 process.destroy();
@@ -241,29 +241,29 @@ public class StreamingService {
                     Thread.currentThread().interrupt();
                 }
             }
-            cleanupStreamResources(processInfo);
+            cleanupStreamResources(processDto);
         } else {
             log.info("Stream '{}' was not running or already removed.", streamKey);
-             cleanupStreamResources(new ProcessInfo(null, streamKey, Paths.get(FileUtils.getResolvedPath(hlsOutputBasePath).toString(), streamKey), Instant.now()));
+             cleanupStreamResources(new ProcessDto(null, streamKey, Paths.get(FileUtils.getResolvedPath(hlsOutputBasePath).toString(), streamKey), Instant.now()));
         }
     }
 
-    private void cleanupStreamResources(ProcessInfo processInfo) {
-        if (processInfo != null && processInfo.getOutputDirectory() != null) {
-            Path dir = processInfo.getOutputDirectory();
+    private void cleanupStreamResources(ProcessDto processDto) {
+        if (processDto != null && processDto.getOutputDirectory() != null) {
+            Path dir = processDto.getOutputDirectory();
             try {
                 if (Files.exists(dir)) {
-                    log.info("Cleaning up HLS files for stream '{}' in directory: {}", processInfo.getStreamKey(), dir);
+                    log.info("Cleaning up HLS files for stream '{}' in directory: {}", processDto.getStreamKey(), dir);
                      Files.walk(dir)
                         .sorted(java.util.Comparator.reverseOrder())
                         .map(Path::toFile)
 //                        .peek(System.out::println)
                         .forEach(File::delete);
 
-                    log.info("Successfully cleaned up directory for stream '{}'.", processInfo.getStreamKey());
+                    log.info("Successfully cleaned up directory for stream '{}'.", processDto.getStreamKey());
                 }
             } catch (IOException e) {
-                log.error("Failed to cleanup HLS files for stream '{}' in directory: {}", processInfo.getStreamKey(), dir, e);
+                log.error("Failed to cleanup HLS files for stream '{}' in directory: {}", processDto.getStreamKey(), dir, e);
             }
         }
     }
@@ -289,14 +289,14 @@ public class StreamingService {
                 log.info("[FFmpeg - {}]: {}", streamKey, line);
             }
         } catch (IOException e) {
-             ProcessInfo info = runningStreams.get(streamKey);
+             ProcessDto info = runningStreams.get(streamKey);
             if (info != null && info.getProcess() == process && process.isAlive()) {
                log.error("Error reading FFmpeg output for stream '{}'", streamKey, e);
              } else if (!e.getMessage().contains("Stream closed")) {
                  log.warn("IOException reading FFmpeg output after process stopped for stream '{}': {}", streamKey, e.getMessage());
              }
         } finally {
-            ProcessInfo info = runningStreams.get(streamKey);
+            ProcessDto info = runningStreams.get(streamKey);
             if (info != null && info.getProcess() == process && !process.isAlive()) {
                 log.info("FFmpeg process for stream '{}' exited unexpectedly or finished.", streamKey);
                 runningStreams.remove(streamKey);

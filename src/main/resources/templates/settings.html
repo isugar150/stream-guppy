@@ -15,7 +15,7 @@
         }
     </style>
     <script>
-        var tbody, video, el_streamKey, el_name, el_rtspUrl, el_createdAt;
+        var tbody, video, el_streamKey, el_name, el_rtspUrl, el_createdAt, el_streamUrl;
         let currentSelectedRow = '';
 
         window.addEventListener("DOMContentLoaded", () => {
@@ -25,6 +25,7 @@
             el_name = document.getElementById('name');
             el_rtspUrl = document.getElementById('rtspUrl');
             el_createdAt = document.getElementById('createdAt');
+            el_streamUrl = document.getElementById('streamUrl');
 
             tbody.addEventListener('click', (event) => {
                 const clickedRow = event.target.closest('tr');
@@ -155,6 +156,7 @@
                   el_name.value = data.name;
                   el_rtspUrl.value = data.rtspUrl;
                   el_createdAt.value = data.createdAt;
+                  el_streamUrl.innerText = `http://localhost:8080/hls/${data.streamKey}/stream.m3u8`
               });
         }
 
@@ -248,7 +250,7 @@
                 <button type="button" class="btn btn-primary btn-sm" onclick="insertData()">저장</button>
             </form>
         </div>
-        <div class="col-md-6"> <video id="video" width="100%" muted playsinline></video> </div>
+        <div class="col-md-6"><div><h5 id="streamUrl"></h5></div> <video id="video" width="100%" muted playsinline></video> </div>
       </div>
     </div>
 </body>

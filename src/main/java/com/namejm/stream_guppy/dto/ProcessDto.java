@@ -1,4 +1,4 @@
-package com.namejm.stream_guppy.config;
+package com.namejm.stream_guppy.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -7,8 +7,8 @@ import java.nio.file.Path;
 import java.time.Instant;
 
 @Getter
-@AllArgsConstructor // Lombok 사용 시
-public class ProcessInfo {
+@AllArgsConstructor
+public class ProcessDto {
     private final Process process;
     private final String streamKey;
     private final Path outputDirectory;
