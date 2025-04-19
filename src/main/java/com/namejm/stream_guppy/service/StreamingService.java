@@ -8,6 +8,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -29,11 +30,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class StreamingService {
     private final ConcurrentHashMap<String, ProcessDto> runningStreams = new ConcurrentHashMap<>();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
+
     private final StreamRepository streamRepository;
 
     @Value("${stream_guppy.ffmpeg.path:ffmpeg}")
@@ -47,24 +49,6 @@ public class StreamingService {
 
     @Value("${stream_guppy.ffmpeg.waitForM3u8TimeoutSeconds:30}") // m3u8 파일 생성 대기 시간 (초)
     private long waitForM3u8TimeoutSeconds;
-
-    @PostConstruct
-    public void init() {
-        int[] array = new int[]{1, 3, 7};
-        for(int i = 0; i < 3; i++) {
-            StreamVO vo = new StreamVO();
-            vo.setStreamKey("CCTV" + (i + 1));
-            vo.setName("CCTV" + (i + 1));
-            vo.setRtspUrl("rtsp://210.99.70.120:1935/live/cctv00"+array[i]+".stream");
-            streamRepository.save(vo);
-        }
-//        StreamVO vo = new StreamVO();
-//        vo.setStreamKey("CCTV1");
-//        vo.setName("CCTV1");
-//        vo.setRtspUrl("rtsp://210.99.70.120:1935/live/cctv007.stream");
-//        vo.setUseYn(true);
-//        streamRepository.save(vo);
-    }
 
     /**
      * 특정 스트림 키에 대한 HLS 스트리밍을 시작하거나, 이미 실행 중이면 정보를 반환하고 마지막 접근 시간을 갱신.

@@ -3,8 +3,9 @@ package com.namejm.stream_guppy.filter;
 import com.namejm.stream_guppy.service.StreamingService;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -13,7 +14,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Slf4j
-@RequiredArgsConstructor
 @Component
 @Order(1)
 public class HlsRequestFilter implements Filter {
@@ -21,7 +21,9 @@ public class HlsRequestFilter implements Filter {
     // 정규식: /hls/문자열/파일명 형태 매칭, streamKey 추출
     private static final Pattern HLS_PATH_PATTERN = Pattern.compile("^/hls/([^/]+)/.*$");
 
-    private final StreamingService streamingService;
+    @Autowired
+    @Lazy
+    private StreamingService streamingService;
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)

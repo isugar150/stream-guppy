@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class SettingController {
 
-    @Value("${guppy.frontUrl}")
+    @Value("${stream_guppy.frontUrl}")
     private String frontUrl;
 
     @GetMapping("/settings")
