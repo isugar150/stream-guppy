@@ -59,6 +59,7 @@
     <script>
         var tbody, video, el_streamKey, el_name, el_rtspUrl, el_createdAt, el_streamUrl, videoLoadingOverlay, hls;
         let currentSelectedRow = '';
+        let currentSelectedValue = '';
 
 
         function showVideoLoading() {
@@ -103,6 +104,7 @@
                 }
                 clickedRow.classList.add('selected-row');
                 currentSelectedRow = clickedRow;
+                currentSelectedValue = clickedRow.dataset.streamKey;
 
                 const streamKey = clickedRow.dataset.streamKey;
 
@@ -219,6 +221,7 @@
                   if (firstRow) {
                       firstRow.classList.add('selected-row');
                       currentSelectedRow = firstRow;
+                      currentSelectedValue = firstRow.dataset.streamKey;
                   }
                   getInfo(initialStreamKey)
 
@@ -260,16 +263,26 @@
             });
 
             currentSelectedRow = "";
+            currentSelectedValue = "";
             el_streamKey.value = "";
             el_name.value = "";
             el_rtspUrl.value = "";
             el_createdAt.value = "";
         }
 
+        function saveData() {
+            if (currentSelectedValue == null || currentSelectedValue === '') {
+                insertData()
+            } else {
+                updateData()
+            }
+        }
+
         function insertData() {
-            fetch('/api/stream/' + el_streamKey.value, {
+            fetch('/api/stream', {
               method: "POST",
               body: JSON.stringify({
+                streamKey: el_streamKey.value,
                 name: el_name.value,
                 rtspUrl: el_rtspUrl.value,
               }),
@@ -286,6 +299,56 @@
                   const data = response.data;
                   if(response.status === 200) {
                       alert('저장하였습니다.')
+                      getList()
+                  } else {
+                      alert(data)
+                  }
+              });
+        }
+
+        function updateData() {
+            fetch('/api/stream/' + el_streamKey.value, {
+              method: "PUT",
+              body: JSON.stringify({
+                name: el_name.value,
+                rtspUrl: el_rtspUrl.value,
+              }),
+              headers: {
+                "Content-Type": "application/json;charset=utf-8;",
+              }})
+              .then((response) => {
+                  if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                  }
+                  return response.json();
+              })
+              .then((response) => {
+                  const data = response.data;
+                  if(response.status === 200) {
+                      alert('수정하였습니다.')
+                      getList()
+                  } else {
+                      alert(data)
+                  }
+              });
+        }
+
+        function deleteData() {
+            fetch('/api/stream/' + el_streamKey.value, {
+              method: "DELETE",
+              headers: {
+                "Content-Type": "application/json;charset=utf-8;",
+              }})
+              .then((response) => {
+                  if (!response.ok) {
+                      throw new Error(`HTTP error! status: ${response.status}`);
+                  }
+                  return response.json();
+              })
+              .then((response) => {
+                  const data = response.data;
+                  if(response.status === 200) {
+                      alert('삭제하였습니다.')
                       getList()
                   } else {
                       alert(data)
@@ -351,7 +414,8 @@
                 </div>
                 <hr />
                 <button type="button" class="btn btn-primary btn-sm" onclick="newData()">신규 생성</button>
-                <button type="button" class="btn btn-primary btn-sm" onclick="insertData()">저장</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="saveData()">저장</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="deleteData()">삭제</button>
             </form>
         </div>
 

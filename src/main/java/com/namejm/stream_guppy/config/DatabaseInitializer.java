@@ -24,12 +24,13 @@ public class DatabaseInitializer implements ApplicationRunner {
 
         if (streamRepository.count() == 0) {
             log.info("No existing stream data found. Inserting initial data.");
-            int[] array = new int[]{1, 3, 7};
+            int[] array = new int[]{7, 5, 1};
+            String[] names = new String[]{"천안역", "상명대 입구 삼거리", "세집매 삼거리"};
             for (int i = 0; i < array.length; i++) {
                 StreamVO vo = new StreamVO();
                 String key = "CCTV" + (i + 1);
                 vo.setStreamKey(key);
-                vo.setName("CCTV " + (i + 1));
+                vo.setName(names[i]);
                 vo.setRtspUrl("rtsp://210.99.70.120:1935/live/cctv00" + array[i] + ".stream");
                 streamRepository.save(vo);
                 log.info("Saved initial data for stream key: {}", vo.getStreamKey());
