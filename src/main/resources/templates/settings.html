@@ -6,21 +6,85 @@
     <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet" />
     <title>TEST</title>
     <style>
-        #tbody tr.selected-row {
+        table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+        }
+
+        #tbody tr.selected-row td,
+        #tbody tr.selected-row th {
             background-color: #e0e0e0 !important;
         }
         #tbody tr:hover {
             cursor: pointer;
             background-color: #f5f5f5;
         }
+        table th,
+        table td {
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+        }
+
+
+        /* --- 로딩 오버레이 스타일 추가 --- */
+        #video-container {
+            position: relative;
+            width: 100%;
+            min-height: 200px;
+            background-color: #eee;
+        }
+
+        #video-loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5em;
+            z-index: 10;
+        }
+
+        #video-loading-overlay.hidden {
+            display: none;
+        }
+        /* --- 로딩 오버레이 스타일 끝 --- */
     </style>
     <script>
-        var tbody, video, el_streamKey, el_name, el_rtspUrl, el_createdAt, el_streamUrl;
+        var tbody, video, el_streamKey, el_name, el_rtspUrl, el_createdAt, el_streamUrl, videoLoadingOverlay, hls;
         let currentSelectedRow = '';
+
+
+        function showVideoLoading() {
+            if (videoLoadingOverlay) {
+                videoLoadingOverlay.classList.remove('hidden');
+                videoLoadingOverlay.innerText = "로딩 중..."; // 메시지 초기화
+            }
+        }
+
+        function hideVideoLoading() {
+            if (videoLoadingOverlay) {
+                videoLoadingOverlay.classList.add('hidden');
+            }
+        }
+
+        function showVideoError(message) {
+             if (videoLoadingOverlay) {
+                videoLoadingOverlay.classList.remove('hidden');
+                videoLoadingOverlay.innerText = message || "비디오 로딩 오류";
+            }
+        }
 
         window.addEventListener("DOMContentLoaded", () => {
             tbody = document.getElementById('tbody');
             video = document.getElementById('video');
+            videoLoadingOverlay = document.getElementById('video-loading-overlay');
             el_streamKey = document.getElementById('streamKey');
             el_name = document.getElementById('name');
             el_rtspUrl = document.getElementById('rtspUrl');
@@ -48,10 +112,20 @@
                     console.log(`Row clicked, changing stream to: ${streamKey}`);
                     const newVideoSrc = `/hls/${streamKey}/stream.m3u8`;
 
+                    showVideoLoading();
+                    video.pause();
+                    video.src = '';
+
                     if (hls) {
                         hls.loadSource(newVideoSrc);
                         hls.once(Hls.Events.MANIFEST_PARSED, function() {
+                            console.log("New manifest parsed for HLS.js");
+                            hideVideoLoading();
                             video.play().catch(e => console.error("Play after change failed:", e));
+                        });
+                        hls.once(Hls.Events.ERROR, function (event, data) {
+                            console.error('HLS Error during stream change:', data);
+                            showVideoError('스트림 로딩 오류');
                         });
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                         video.src = newVideoSrc;
@@ -66,6 +140,7 @@
         });
 
         function getList(){
+            showVideoLoading();
             fetch('/api/stream', {
               method: "GET",
               headers: {
@@ -82,6 +157,7 @@
                   if (!data || data.length === 0) {
                       console.warn("No stream data received.");
                       tbody.innerHTML = '<tr><td colspan="5">스트림 데이터가 없습니다.</td></tr>';
+                      hideVideoLoading();
                       return;
                   }
 
@@ -111,17 +187,32 @@
                           video.muted = true;
                           video.play().catch(e => console.error("Autoplay failed:", e));
                       });
+                      hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+                          console.log("Initial manifest parsed:", data.levels.length, "levels found");
+                          hideVideoLoading();
+                          video.muted = true;
+                          video.play().catch(e => console.error("Autoplay failed after manifest parsed:", e));
+                      });
                       hls.on(Hls.Events.ERROR, function (event, data) {
                           console.error('HLS Error:', data);
+                          if (data.fatal) { // 치명적 오류 시
+                              showVideoError('비디오 로딩 오류 (HLS)');
+                          }
                       });
                   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                       video.src = videoSrc;
                       video.muted = true;
                       video.addEventListener('loadedmetadata', function() {
+                          hideVideoLoading();
                           video.play().catch(e => console.error("Autoplay failed:", e));
+                      });
+                      video.addEventListener('error', (e) => {
+                          console.error("Native HLS video error:", e);
+                           showVideoError('비디오 로딩 오류');
                       });
                   } else {
                       console.error("HLS is not supported on this browser.");
+                      showVideoError("HLS 미지원 브라우저");
                   }
 
                   const firstRow = tbody.querySelector('tr');
@@ -135,6 +226,7 @@
               .catch((error) => {
                   console.error("Fetch error:", error);
                   tbody.innerHTML = `<tr><td colspan="5">데이터를 불러오는 중 오류 발생: ${error.message}</td></tr>`;
+                  showVideoError('스트림 목록 로딩 실패');
               });
         }
 
@@ -161,6 +253,12 @@
         }
 
         function newData() {
+            const selectedRows = tbody.querySelectorAll('tr.selected-row');
+
+            selectedRows.forEach(row => {
+                row.classList.remove('selected-row');
+            });
+
             currentSelectedRow = "";
             el_streamKey.value = "";
             el_name.value = "";
@@ -200,7 +298,13 @@
     <div class="container text-center mt-3"> <div class="row align-items-start">
         <div class="col-md-6">
             <div class="table-responsive">
-                <table class="table table-hover">
+                <table class="table table-hover table-bordered table-ellipsis">
+                    <colgroup>
+                        <col style="width: 10%;">
+                        <col style="width: 20%;">
+                        <col style="width: 20%;">
+                        <col style="width: 50%;">
+                    </colgroup>
                     <thead>
                     <tr>
                       <th scope="col">#</th>
@@ -250,7 +354,14 @@
                 <button type="button" class="btn btn-primary btn-sm" onclick="insertData()">저장</button>
             </form>
         </div>
-        <div class="col-md-6"><div><h5 id="streamUrl"></h5></div> <video id="video" width="100%" muted playsinline></video> </div>
+
+        <div class="col-md-6 mb-3">
+            <div><h5 id="streamUrl"></h5></div>
+            <div id="video-container">
+                <div id="video-loading-overlay">로딩 중...</div>
+                <video id="video" width="100%" muted playsinline autoplay style="display: block; background-color: #000;"></video>
+            </div>
+        </div>
       </div>
     </div>
 </body>
